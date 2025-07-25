@@ -1,1 +1,3 @@
-# prompt-cleaner
+# AI Prompt Cleaner
+
+This app cleans and formats prompts using AI...
