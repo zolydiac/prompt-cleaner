@@ -1,21 +1,12 @@
+// Updated PromptCleaner.jsx
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Wand2, Crown, CheckCircle, AlertCircle, Copy } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  'https://iemzhaorklxvzmaenmvr.supabase.co',
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
-
-async function checkProStatus(email) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('is_pro')
-    .eq('email', email)
-    .single();
-
-  return data?.is_pro === true;
-}
 
 const PromptCleaner = () => {
   const [inputPrompt, setInputPrompt] = useState('');
@@ -28,25 +19,22 @@ const PromptCleaner = () => {
   const [copied, setCopied] = useState(false);
 
   const DAILY_LIMIT = 3;
-  const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
-  // Fetch is_pro from Supabase using user's email
   useEffect(() => {
-    const email = localStorage.getItem('userEmail'); // Replace with your auth logic
+    const email = localStorage.getItem('userEmail');
     if (email) {
       supabase
         .from('users')
         .select('is_pro')
         .eq('email', email)
         .single()
-        .then(({ data, error }) => {
+        .then(({ data }) => {
           setIsProUser(data?.is_pro === true);
         });
     } else {
       setIsProUser(false);
     }
 
-    // Get today's usage count for free users
     const today = new Date().toDateString();
     const lastUsageDate = localStorage.getItem('lastUsageDate');
     const storedCount = parseInt(localStorage.getItem('usageCount') || '0');
@@ -68,45 +56,21 @@ const PromptCleaner = () => {
       setError('Daily limit reached. Upgrade to Pro for unlimited usage!');
       return;
     }
-    if (!OPENAI_API_KEY) {
-      setError('API key not found. Please check your .env file.');
-      return;
-    }
     setIsLoading(true);
     setError('');
     setOutputPrompt('');
     try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
+      const response = await fetch('/api/clean-prompt', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: isProUser ? "gpt-4" : "gpt-3.5-turbo",
-          messages: [
-            {
-              role: 'system',
-              content: isProUser ?
-                'You are an expert AI prompt optimizer. Provide advanced optimization with detailed structure, specific instructions, and professional formatting. Include best practices and advanced techniques for maximum AI performance.' :
-                'You are an assistant that simplifies and cleans prompts for ChatGPT to improve clarity and performance. Keep the intent but remove fluff and verbosity.'
-            },
-            {
-              role: 'user',
-              content: `Please clean and optimize this prompt:\n\n${inputPrompt}`
-            }
-          ],
-          max_tokens: isProUser ? 1000 : 500,
-          temperature: 0.3
-        })
+        body: JSON.stringify({ prompt: inputPrompt, isProUser }),
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to clean prompt.');
-      }
       const data = await response.json();
-      const cleanedPrompt = data.choices[0].message.content;
-      setOutputPrompt(cleanedPrompt);
+      if (!response.ok) throw new Error(data.error || 'Failed to clean prompt.');
+
+      setOutputPrompt(data.output);
       setShowSuccess(true);
       if (!isProUser) {
         const newCount = usageCount + 1;
@@ -183,9 +147,8 @@ const PromptCleaner = () => {
           value={inputPrompt}
           onChange={(e) => setInputPrompt(e.target.value)}
           placeholder={isProUser ?
-            "Paste your prompt here for advanced optimization with GPT-4..." :
-            "Paste your messy or verbose prompt here..."
-          }
+            'Paste your prompt here for advanced optimization with GPT-4...' :
+            'Paste your messy or verbose prompt here...'}
           style={{ height: isProUser ? '250px' : '200px' }}
         />
         <div className="flex-between" style={{ marginTop: '1rem' }}>
@@ -213,9 +176,8 @@ const PromptCleaner = () => {
           value={outputPrompt}
           readOnly
           placeholder={isProUser ?
-            "Your professionally optimized prompt will appear here..." :
-            "Your cleaned and optimized prompt will appear here..."
-          }
+            'Your professionally optimized prompt will appear here...' :
+            'Your cleaned and optimized prompt will appear here...'}
           style={{ height: isProUser ? '250px' : '200px' }}
         />
         <div className="text-xs text-gray-500" style={{ marginTop: '0.5rem' }}>
@@ -223,7 +185,6 @@ const PromptCleaner = () => {
         </div>
       </div>
 
-      {/* Upgrade Section */}
       {!isProUser && (
         <div className="upgrade-box">
           <Crown className="w-12 h-12 mx-auto mb-4 text-yellow-300" />
@@ -261,4 +222,3 @@ const PromptCleaner = () => {
 };
 
 export default PromptCleaner;
-// ...existing code removed: license modal, license validation, license state...
