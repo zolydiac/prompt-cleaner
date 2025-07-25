@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -14,3 +15,8 @@ If you are developing a production application, we recommend using TypeScript wi
 =======
 # prompt-cleaner
 >>>>>>> 8c69a3991c2854df5f3e58c1c2d73d6e640d6954
+=======
+# AI Prompt Cleaner
+
+This app cleans and formats prompts using AI...
+>>>>>>> ebbe1f11f901725cc659a710840dcce2e15115e8
