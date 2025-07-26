@@ -91,7 +91,11 @@ const PromptCleaner = () => {
         body: JSON.stringify({ prompt: inputPrompt, isProUser }),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      
       const text = await response.text();
+      console.log('Raw response text:', text);
       
       let data;
       try {
@@ -124,19 +128,31 @@ const PromptCleaner = () => {
     } catch (err) {
       console.error('API Error:', err);
       
-      // Provide user-friendly error messages
-      let errorMessage = err.message || 'Something went wrong. Please try again.';
+      // Better error handling to avoid [object Object]
+      let errorMessage = 'Something went wrong. Please try again.';
       
-      if (err.message.includes('fetch')) {
-        errorMessage = 'Network error. Please check your connection and try again.';
-      } else if (err.message.includes('401')) {
-        errorMessage = 'Authentication error. Please try again.';
-      } else if (err.message.includes('429')) {
-        errorMessage = 'Rate limit exceeded. Please try again later.';
-      } else if (err.message.includes('500')) {
-        errorMessage = 'Server error. Please try again in a moment.';
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (err && typeof err === 'object' && err.message) {
+        errorMessage = err.message;
       }
       
+      // Check for specific error types
+      if (errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (errorMessage.includes('401')) {
+        errorMessage = 'Authentication error. Please try again.';
+      } else if (errorMessage.includes('429')) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (errorMessage.includes('500')) {
+        errorMessage = 'Server error. Please try again in a moment.';
+      } else if (errorMessage.includes('TypeError')) {
+        errorMessage = 'Network connection failed. Please try again.';
+      }
+      
+      console.log('Final error message:', errorMessage);
       setError(errorMessage);
     } finally {
       setIsLoading(false);
