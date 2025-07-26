@@ -1,4 +1,4 @@
-// Production PromptCleaner.jsx - Clean version without debug info
+// src/components/PromptCleaner.jsx - Fixed API endpoint
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Wand2, Crown, CheckCircle, AlertCircle, Copy } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -19,6 +19,19 @@ const PromptCleaner = () => {
   const [copied, setCopied] = useState(false);
 
   const DAILY_LIMIT = 3;
+
+  // Determine API base URL based on environment
+  const getApiBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      // Client-side
+      if (window.location.hostname === 'localhost') {
+        return 'http://localhost:3001';
+      }
+      // For Vercel deployment, use relative paths
+      return '';
+    }
+    return '';
+  };
 
   useEffect(() => {
     const email = localStorage.getItem('userEmail');
@@ -66,7 +79,10 @@ const PromptCleaner = () => {
     setOutputPrompt('');
     
     try {
-      const response = await fetch('http://localhost:3001/api/clean-prompt', {
+      const apiUrl = `${getApiBaseUrl()}/api/clean-prompt`;
+      console.log('Making request to:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -81,6 +97,7 @@ const PromptCleaner = () => {
       try {
         data = JSON.parse(text);
       } catch (parseError) {
+        console.error('Parse error:', parseError, 'Raw response:', text);
         throw new Error('Unable to process server response. Please try again.');
       }
 
@@ -105,6 +122,8 @@ const PromptCleaner = () => {
       setTimeout(() => setShowSuccess(false), 3000);
       
     } catch (err) {
+      console.error('API Error:', err);
+      
       // Provide user-friendly error messages
       let errorMessage = err.message || 'Something went wrong. Please try again.';
       
