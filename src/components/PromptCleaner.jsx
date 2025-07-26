@@ -1,4 +1,4 @@
-// Updated PromptCleaner.jsx
+// Production PromptCleaner.jsx - Clean version without debug info
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Wand2, Crown, CheckCircle, AlertCircle, Copy } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -30,6 +30,10 @@ const PromptCleaner = () => {
         .single()
         .then(({ data }) => {
           setIsProUser(data?.is_pro === true);
+        })
+        .catch(err => {
+          console.error('Supabase error:', err);
+          setIsProUser(false);
         });
     } else {
       setIsProUser(false);
@@ -56,30 +60,65 @@ const PromptCleaner = () => {
       setError('Daily limit reached. Upgrade to Pro for unlimited usage!');
       return;
     }
+    
     setIsLoading(true);
     setError('');
     setOutputPrompt('');
+    
     try {
-      const response = await fetch('/api/clean-prompt', {
+      const response = await fetch('http://localhost:3001/api/clean-prompt', {
         method: 'POST',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ prompt: inputPrompt, isProUser }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to clean prompt.');
+
+      const text = await response.text();
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error('Unable to process server response. Please try again.');
+      }
+
+      if (!response.ok) {
+        const errorMsg = data.error || `Server error (${response.status})`;
+        throw new Error(errorMsg);
+      }
+
+      if (!data.output) {
+        throw new Error('Server response missing cleaned prompt output');
+      }
 
       setOutputPrompt(data.output);
       setShowSuccess(true);
+      
       if (!isProUser) {
         const newCount = usageCount + 1;
         setUsageCount(newCount);
         localStorage.setItem('usageCount', newCount.toString());
       }
+      
       setTimeout(() => setShowSuccess(false), 3000);
+      
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      // Provide user-friendly error messages
+      let errorMessage = err.message || 'Something went wrong. Please try again.';
+      
+      if (err.message.includes('fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (err.message.includes('401')) {
+        errorMessage = 'Authentication error. Please try again.';
+      } else if (err.message.includes('429')) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (err.message.includes('500')) {
+        errorMessage = 'Server error. Please try again in a moment.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +130,15 @@ const PromptCleaner = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy text');
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = outputPrompt;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -128,7 +175,7 @@ const PromptCleaner = () => {
       {showSuccess && (
         <div className="status success">
           <CheckCircle className="inline mr-2" />
-          {isProUser ? '🎉 Pro features unlocked!' : 'Prompt cleaned successfully!'}
+          {isProUser ? '🎉 Prompt optimized with Pro features!' : 'Prompt cleaned successfully!'}
         </div>
       )}
 
@@ -150,14 +197,40 @@ const PromptCleaner = () => {
             'Paste your prompt here for advanced optimization with GPT-4...' :
             'Paste your messy or verbose prompt here...'}
           style={{ height: isProUser ? '250px' : '200px' }}
+          disabled={isLoading}
         />
         <div className="flex-between" style={{ marginTop: '1rem' }}>
           <span className="text-xs text-gray-500">
             {inputPrompt.length} characters
             {isProUser && ' • GPT-4 • Advanced optimization'}
           </span>
-          <button onClick={cleanPrompt} disabled={isLoading || (!isProUser && usageCount >= DAILY_LIMIT)}>
-            {isLoading ? 'Cleaning...' : (<><Wand2 className="w-4 h-4" /> Clean Prompt</>)}
+          <button 
+            onClick={cleanPrompt} 
+            disabled={isLoading || (!isProUser && usageCount >= DAILY_LIMIT)}
+            style={{ 
+              opacity: (isLoading || (!isProUser && usageCount >= DAILY_LIMIT)) ? 0.6 : 1,
+              cursor: (isLoading || (!isProUser && usageCount >= DAILY_LIMIT)) ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {isLoading ? (
+              <>
+                <div style={{ display: 'inline-block', marginRight: '0.5rem' }}>
+                  <div style={{ 
+                    border: '2px solid #f3f3f3',
+                    borderTop: '2px solid #667eea',
+                    borderRadius: '50%',
+                    width: '16px',
+                    height: '16px',
+                    animation: 'spin 1s linear infinite'
+                  }}></div>
+                </div>
+                Cleaning...
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-4 h-4" /> Clean Prompt
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -168,7 +241,19 @@ const PromptCleaner = () => {
           {isProUser && <span style={{ color: '#667eea', fontSize: '0.75rem', marginLeft: '0.5rem' }}>✨ Pro Quality</span>}
         </label>
         {outputPrompt && (
-          <button onClick={copyToClipboard} className="text-sm" style={{ float: 'right', marginTop: '-1.5rem' }}>
+          <button 
+            onClick={copyToClipboard} 
+            className="text-sm" 
+            style={{ 
+              float: 'right', 
+              marginTop: '-1.5rem', 
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none',
+              color: '#667eea',
+              fontSize: '0.875rem'
+            }}
+          >
             <Copy className="inline w-4 h-4 mr-1" /> {copied ? 'Copied!' : 'Copy'}
           </button>
         )}
@@ -182,6 +267,11 @@ const PromptCleaner = () => {
         />
         <div className="text-xs text-gray-500" style={{ marginTop: '0.5rem' }}>
           {outputPrompt.length} characters
+          {outputPrompt && (
+            <span style={{ marginLeft: '1rem', color: '#10b981' }}>
+              ✓ Ready to use
+            </span>
+          )}
         </div>
       </div>
 
@@ -217,6 +307,13 @@ const PromptCleaner = () => {
           </p>
         </div>
       )}
+      
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
